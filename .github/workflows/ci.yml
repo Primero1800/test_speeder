@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    env:
+      TARGET_URL: ""
+      REQUEST_COUNT: 10
+      REQUEST_TIMEOUT: 30
+      LOG_LEVEL: DEBUG
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install poetry==2.1.3
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Ruff black
+        run: poetry run black app tests main.py
+
+      - name: Ruff linting
+        run: poetry run ruff check app tests main.py --fix
+
+      - name: Ruff formatting
+        run: poetry run ruff format app tests main.py
+
+      - name: Check types with mypy
+        run: poetry run mypy app tests main.py
+
+      - name: Run tests
+        run: poetry run pytest --cov-report=term-missing:skip-covered --cov=app tests/
