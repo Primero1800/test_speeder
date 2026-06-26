@@ -2,6 +2,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Application settings loaded from environment variables or .env file"""
+
     TARGET_URL: str = ""
     REQUEST_COUNT: int = 10
     REQUEST_TIMEOUT: int = 30
@@ -12,4 +14,4 @@ class Settings(BaseSettings):
     )
 
 
-settings = Settings()  # type: ignore[call-arg]
+settings = Settings()

@@ -2,14 +2,13 @@ import time
 
 import aiohttp
 
+from app.core.aiohttp_exception_handler import aiohttp_exception_handler
 from app.pyd.schemas import RequestResult, SpeedReport
-
-_LINE = "━" * 54
-_SEP = "─" * 52
+from app.services.reporter import SpeedReporter
 
 
 class SpeedTesterService:
-    """Runs sequential HTTP requests and reports download speed."""
+    """Runs sequential HTTP requests and builds the speed report."""
 
     def __init__(
         self,
@@ -17,49 +16,82 @@ class SpeedTesterService:
         url: str,
         count: int,
         timeout: int,
+        reporter: SpeedReporter | None = None,
     ) -> None:
+        """Initialize the speed tester
+
+        :param:
+            session: the aiohttp client session to use for requests
+            url: the target URL to download from
+            count: number of sequential requests to perform
+            timeout: per-request timeout in seconds
+            reporter: output handler; defaults to SpeedReporter()
+        """
         self._session = session
+        self._reporter = reporter or SpeedReporter()
         self._url = url
         self._count = count
         self._timeout = aiohttp.ClientTimeout(total=timeout)
 
     async def run(self) -> SpeedReport:
-        """Execute all requests sequentially and return the speed report."""
-        self._print_header()
+        """Execute all requests sequentially and return the speed report
+
+        :returns:
+            report: the aggregated SpeedReport with timing and throughput data
+        """
+        self._reporter.print_header(self._url, self._count)
         results: list[RequestResult] = []
 
         for i in range(1, self._count + 1):
-            result = await self._single_request(i)
+            start = time.monotonic()
+            try:
+                content = await self._fetch()
+                duration = round(time.monotonic() - start, 3)
+                result = RequestResult(
+                    index=i,
+                    duration_sec=duration,
+                    bytes_downloaded=len(content),
+                    success=True,
+                )
+            except Exception as exc:
+                duration = round(time.monotonic() - start, 3)
+                result = RequestResult(
+                    index=i,
+                    duration_sec=duration,
+                    bytes_downloaded=0,
+                    success=False,
+                    error=str(exc),
+                )
             results.append(result)
-            self._print_result(result)
+            self._reporter.print_result(result, self._count)
 
         report = self._build_report(results)
-        self._print_report(report)
+        self._reporter.print_report(report)
         return report
 
-    async def _single_request(self, index: int) -> RequestResult:
-        start = time.monotonic()
-        try:
-            async with self._session.get(self._url, timeout=self._timeout) as response:
-                content = await response.read()
-            duration = time.monotonic() - start
-            return RequestResult(
-                index=index,
-                duration_sec=round(duration, 3),
-                bytes_downloaded=len(content),
-                success=True,
-            )
-        except Exception as exc:
-            duration = time.monotonic() - start
-            return RequestResult(
-                index=index,
-                duration_sec=round(duration, 3),
-                bytes_downloaded=0,
-                success=False,
-                error=str(exc),
-            )
+    @aiohttp_exception_handler(is_raise=True)
+    async def _fetch(self) -> bytes:
+        """Download the target URL and return raw response bytes
+
+        :returns:
+            content: the raw response body
+
+        :raise:
+            ClientResponseError: on HTTP 4xx/5xx responses
+            ClientConnectionError: on network-level failures
+        """
+        async with self._session.get(self._url, timeout=self._timeout) as response:
+            return await response.read()
 
     def _build_report(self, results: list[RequestResult]) -> SpeedReport:
+        """Build the aggregated speed report from individual request results
+
+        :param:
+            results: list of results from all requests
+
+        :returns:
+            report: the SpeedReport with totals, averages, and throughput
+        """
         successful = [r for r in results if r.success]
         total_bytes = sum(r.bytes_downloaded for r in successful)
         total_time = sum(r.duration_sec for r in successful)
@@ -78,33 +110,3 @@ class SpeedTesterService:
             avg_time_sec=avg_time,
             speed_mbps=speed,
         )
-
-    def _print_header(self) -> None:
-        print(f"\n{_LINE}")
-        print("  INTERNET SPEED TEST")
-        print(_LINE)
-        print(f"  Target   : {self._url}")
-        print(f"  Requests : {self._count}")
-        print(_LINE)
-
-    def _print_result(self, r: RequestResult) -> None:
-        tag = f"{r.index:02d}/{self._count:02d}"
-        if r.success:
-            mb = r.bytes_downloaded / 1024 / 1024
-            print(f"  [{tag}]  {r.duration_sec:.3f}s   {mb:.2f} MB  ✓")
-        else:
-            print(f"  [{tag}]  {r.duration_sec:.3f}s   ERROR: {r.error}  ✗")
-
-    def _print_report(self, report: SpeedReport) -> None:
-        mb_total = report.total_bytes / 1024 / 1024
-        print(_LINE)
-        print("  RESULTS")
-        print(f"  {_SEP}")
-        print(
-            f"  Requests  : {report.successful_requests} / {report.total_requests} successful"
-        )
-        print(f"  Total data: {mb_total:.2f} MB")
-        print(f"  Total time: {report.total_time_sec:.2f} s")
-        print(f"  Avg time  : {report.avg_time_sec:.3f} s / request")
-        print(f"  Speed     : ★  {report.speed_mbps:.2f} MB/s")
-        print(f"{_LINE}\n")
