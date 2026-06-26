@@ -11,7 +11,9 @@ BLUE = "\033[34m"
 
 
 class ColorFormatter(logging.Formatter):
-    _COLORS = {
+    """Logging formatter that colorizes level names and error messages for terminal output"""
+
+    _COLORS: dict[int, str] = {
         logging.DEBUG: YELLOW,
         logging.INFO: GREEN,
         logging.WARNING: BLUE,
@@ -20,10 +22,18 @@ class ColorFormatter(logging.Formatter):
     }
 
     def format(self, record: logging.LogRecord) -> str:
+        """Apply ANSI color codes to the log record and delegate to parent formatter
+
+        :param:
+            record: the log record to format
+
+        :returns:
+            formatted: the formatted log string with color codes applied
+        """
         color = self._COLORS.get(record.levelno, WHITE)
         record.levelname = f"{color}{record.levelname}{WHITE}"
         if record.levelno in (logging.ERROR, logging.CRITICAL):
-            record.msg = f"{RED}{record.msg}"
+            record.msg = f"{RED}{record.msg}{WHITE}"
         return super().format(record)
 
 

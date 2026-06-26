@@ -1,67 +1,148 @@
-# test-speeder
+# 🌐 test-speeder
 
-CLI internet speed tester — measures your download speed via 10 sequential HTTP requests.
+<b>CLI-инструмент для замера скорости интернет-соединения.</b>
 
-## Quick start
+Принимает адрес любого доступного файла, выполняет **10 последовательных HTTP-запросов**,
+вычисляет среднее время отклика, суммарный объём загруженных данных и выводит
+итоговую скорость в **МБ/с**.
 
-### Option A — Docker (recommended, no local Python required)
+---
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/Primero1800/test-speeder.git
-cd test-speeder
+## Требования
 
-# 2. (Optional) Set your own test URL
-cp .env.example .env
-# edit .env → TARGET_URL=https://...
+- **Python 3.12+** и **Poetry** — для запуска напрямую
+- **Docker** и **Docker Compose** — для запуска через контейнер *(Python не требуется)*
 
-# 3. Build and run
-docker compose run --rm service
+---
 
-# Clean up everything when done
-docker compose down --rmi all
-```
+## Вариант A — Docker *(рекомендуется)*
 
-### Option B — Poetry (local venv)
+Не требует установки Python или Poetry на хост-машину.
+Все зависимости устанавливаются внутрь образа при сборке.
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/Primero1800/test-speeder.git
-cd test-speeder
+<b>Dockerfile построен по принципу многоэтапной сборки (multi-stage build):</b>
+первый этап (<b>builder</b>) устанавливает Poetry и все зависимости во временный слой,
+второй этап (<b>runtime</b>) копирует только готовое виртуальное окружение и исходный код —
+без Poetry и сборочных инструментов. Итоговый образ получается минимальным.
 
-# 2. Install Poetry (if not installed)
-pip install poetry
+**1. Клонируйте репозиторий:**
 
-# 3. Install dependencies
-poetry install
+    git clone https://github.com/Primero1800/test-speeder.git
+    cd test-speeder
 
-# 4. (Optional) Set your own test URL
-cp .env.example .env
+**2. (Опционально) Настройте конфигурацию:**
 
-# 5. Run
-poetry run python main.py
-```
+    cp .env.example .env
 
-## Usage
+Откройте `.env` и укажите свой URL для тестов или оставьте пустым —
+при запуске программа спросит адрес интерактивно.
 
-```bash
-# Interactive (will ask for URL at startup)
-docker compose run --rm service
+**3. Соберите образ:**
 
-# Pass URL directly
-docker compose run --rm service --url https://example.com/large-file.jpg
+    docker compose build
 
-# With Poetry
-poetry run python main.py --url https://example.com/large-file.jpg
-```
+**4. Запустите:**
 
-## Configuration
+    docker compose run --rm service
 
-Copy `.env.example` to `.env` and edit as needed:
+Или передайте URL напрямую без интерактивного ввода:
 
-| Variable | Default | Description |
+    docker compose run --rm service --url https://example.com/large-file.jpg
+
+*(Образ пересобирается только при изменении кода или зависимостей — шаги 3–4.
+В остальных случаях достаточно только шага 4.)*
+
+**5. Остановка и очистка:**
+
+    docker compose down --rmi all
+
+После этой команды хост-машина остаётся полностью чистой.
+
+---
+
+## Вариант B — Poetry *(для разработки)*
+
+**1. Клонируйте репозиторий:**
+
+    git clone https://github.com/Primero1800/test-speeder.git
+    cd test-speeder
+
+**2. Установите Poetry** *(если не установлен)*:
+
+    pip install poetry
+
+**3. Установите зависимости:**
+
+    poetry install
+
+**4. (Опционально) Настройте конфигурацию:**
+
+    cp .env.example .env
+
+**5. Запустите:**
+
+    poetry run python main.py
+
+Или передайте URL напрямую:
+
+    poetry run python main.py --url https://example.com/large-file.jpg
+
+---
+
+## Конфигурация
+
+Скопируйте `.env.example` в `.env` и отредактируйте при необходимости:
+
+| Переменная | По умолчанию | Описание |
 |---|---|---|
-| `TARGET_URL` | _(empty)_ | URL of a large file. If empty, you will be prompted at startup. |
-| `REQUEST_COUNT` | `10` | Number of sequential requests |
-| `REQUEST_TIMEOUT` | `30` | Timeout per request in seconds |
-| `LOG_LEVEL` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+| `TARGET_URL` | *(пусто)* | URL файла для тестирования. Если пусто — программа спросит при запуске. |
+| `REQUEST_COUNT` | `10` | Количество последовательных запросов |
+| `REQUEST_TIMEOUT` | `30` | Таймаут одного запроса в секундах |
+| `LOG_LEVEL` | `INFO` | Уровень логирования: `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+
+---
+
+## Использование
+
+При запуске без аргументов программа спрашивает URL интерактивно:
+
+    Enter URL to test (or press Enter to use system default):
+
+- Введите URL — программа проверит его формат и доступность
+- Нажмите **Enter** — будет использован `TARGET_URL` из `.env`
+- Введите `q` или нажмите **Ctrl+D** — выход из программы
+- Если URL невалиден или недоступен — программа попросит ввести снова
+
+При передаче `--url` интерактивный ввод пропускается:
+
+    poetry run python main.py --url https://example.com/large-file.jpg
+
+---
+
+## Пример вывода
+
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      INTERNET SPEED TEST
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      Target   : https://example.com/large-file.jpg
+      Requests : 10
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      [01/10]  0.555s   0.35 MB  ✓
+      [02/10]  0.257s   0.35 MB  ✓
+      [03/10]  0.222s   0.35 MB  ✓
+      [04/10]  0.216s   0.35 MB  ✓
+      [05/10]  0.413s   0.35 MB  ✓
+      [06/10]  0.246s   0.35 MB  ✓
+      [07/10]  0.216s   0.35 MB  ✓
+      [08/10]  0.221s   0.35 MB  ✓
+      [09/10]  0.203s   0.35 MB  ✓
+      [10/10]  0.188s   0.35 MB  ✓
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      RESULTS
+      ────────────────────────────────────────────────────
+      Requests  : 10 / 10 successful
+      Total data: 3.46 MB
+      Total time: 2.74 s
+      Avg time  : 0.274 s / request
+      Speed     : ★  1.26 MB/s
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
